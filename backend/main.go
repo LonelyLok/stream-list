@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"example.com/backend/api"
+	"github.com/rs/cors"
 )
 
 func init() {
@@ -49,8 +50,14 @@ func getUpcomingStreamsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/", baseHandler)
-	http.HandleFunc("/upcoming_streams", getUpcomingStreamsHandler)
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"https://*.onrender.com"},
+		AllowedMethods: []string{"GET"},
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", baseHandler)
+	mux.HandleFunc("/upcoming_streams", getUpcomingStreamsHandler)
+	handler := c.Handler(mux)
 	fmt.Println("Server is running on port 8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }
