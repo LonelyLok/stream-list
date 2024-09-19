@@ -75,6 +75,15 @@ type StreamerInfo struct {
 	Videos    []interface{} `json:"videos"`
 }
 
+func contains(slice []string, element string) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
+}
+
 func GetAllUpcomingStreams() interface{} {
 
 	API_KEY := os.Getenv("YOUTUBE_API_KEY")
@@ -94,21 +103,27 @@ func GetAllUpcomingStreams() interface{} {
 	videoLists := []interface{}{}
 
 	for _, streamer := range streamers {
-		call := service.Search.List([]string{"id", "snippet"}).
-			ChannelId(streamer.channelId).
-			Type("video").
-			EventType("upcoming").
-			MaxResults(*maxResults)
 
-		response, err := call.Do()
+		for _, eventType := range []string{"upcoming", "live"} {
+			call := service.Search.List([]string{"id", "snippet"}).
+				ChannelId(streamer.channelId).
+				Type("video").
+				EventType(eventType).
+				MaxResults(*maxResults)
 
-		if err != nil {
-			log.Printf("Error making search API call: %v", err)
-			continue
-		}
+			response, err := call.Do()
 
-		for _, item := range response.Items {
-			videoIds = append(videoIds, item.Id.VideoId)
+			if err != nil {
+				log.Printf("Error making search API call: %v", err)
+				continue
+			}
+
+			for _, item := range response.Items {
+				if contains(videoIds, item.Id.VideoId) {
+					continue
+				}
+				videoIds = append(videoIds, item.Id.VideoId)
+			}
 		}
 
 		info := StreamerInfo{
@@ -126,7 +141,7 @@ func GetAllUpcomingStreams() interface{} {
 		response, err := videoCall.Do()
 
 		if err != nil {
-			log.Fatalf("Error making search API call: %v", err)
+			log.Printf("Error making Video List API call: %v", err)
 		}
 
 		for _, item := range response.Items {
