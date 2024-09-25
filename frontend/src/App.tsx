@@ -39,6 +39,11 @@ function App() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [streamers, setStreamers] = useState<Omit<Data, 'videos'>[]>([]);
   const [loading, setLoading] = useState(true);
+  const chipColorMap = {
+    live: 'danger' as const,
+    none: 'neutral' as const,
+    upcoming: 'warning' as const,
+  };
   const getData = async () => {
     try {
       const response = await fetch(`${backendUrl}`);
@@ -84,8 +89,8 @@ function App() {
             variant='plain'
             component='a'
             href='https://github.com/LonelyLok/stream-list'
-            target="_blank"
-            rel="noopener noreferrer"
+            target='_blank'
+            rel='noopener noreferrer'
             sx={{
               ml: 1,
               '&:hover': {
@@ -169,9 +174,11 @@ function App() {
                       </CardOverflow>
                     </AspectRatio>
                     <CardContent>
-                      <Typography level='title-lg' noWrap={true}>
-                        {video.title}
-                      </Typography>
+                      <Tooltip title={video.title}>
+                        <Typography level='title-lg' noWrap={true}>
+                          {video.title}
+                        </Typography>
+                      </Tooltip>
                       <Typography level='body-sm' noWrap={true}>
                         Streamer: {video?.streamer}
                       </Typography>
@@ -185,8 +192,13 @@ function App() {
                           size='sm'
                           variant='solid'
                           color={
-                            video?.liveBroadcastContent === 'live'
-                              ? 'danger'
+                            video?.liveBroadcastContent
+                              ? chipColorMap[
+                                  video.liveBroadcastContent as
+                                    | 'live'
+                                    | 'none'
+                                    | 'upcoming'
+                                ]
                               : 'neutral'
                           }
                           sx={{ marginLeft: '8px' }}
