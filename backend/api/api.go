@@ -26,12 +26,12 @@ var streamers = []Streamer{
 	{
 		"UCL_qhgtOy0dy1Agp8vkySQg",
 		"Mori Calliope",
-		"https://yt3.googleusercontent.com/8B_T08sx8R7XVi5Mwx_l9sjQm5FGWGspeujSvVDvd80Zyr-3VvVTRGVLOnBrqNRxZp6ZeXAV=s120-c-k-c0x00ffffff-no-rj",
+		"https://yt3.googleusercontent.com/FT92k-lGkFhElXOuq3KlwCvCpWPlEYwtAy2tjRibnmkrPP-Aaksbf2_P7XY26O9R2W4efoP7=s120-c-k-c0x00ffffff-no-rj",
 	},
 	{
 		"UC8rcEBzJSleTkf_-agPM20g",
 		"IRyS",
-		"https://yt3.googleusercontent.com/cDSMiVy3Xa49Ci_YyouVNzfCwVXKRYmOeywWQ_UFKzvAp6tvyeMtXMyzWzQ2u8ft4EENsJKt7A=s120-c-k-c0x00ffffff-no-rj",
+		"https://yt3.googleusercontent.com/zztv3u0fMtIbGu5nLjKPTwR_8-U0nSq80kmWW0xBpc42tA6dFHlDb_TG3VjSPLNFBuAIZtaFrw=s120-c-k-c0x00ffffff-no-rj",
 	},
 	{
 		"UCHsx4Hqa-1ORjQTh9TYDhww",
@@ -41,12 +41,17 @@ var streamers = []Streamer{
 	{
 		"UCgmPnx-EEeOrZSg5Tiw7ZRQ",
 		"Hakos Baelz",
-		"https://yt3.googleusercontent.com/9FFCT3cu9FxyLJUUFovpPI7WRj0I7_KuApwkEaLsD0NHVVL2OPTtGn8Qga5YFbeC_47-MoEXrA=s176-c-k-c0x00ffffff-no-rj-mo",
+		"https://yt3.googleusercontent.com/sFBVGkudEnu_MCH23nJdS2oTnOzd9M7e6Mgki5JBhbj4PnjWGgG2hNmW2Vozw5rr8-K0s-DpaPs=s120-c-k-c0x00ffffff-no-rj",
 	},
 	{
 		"UCgnfPPb9JI3e9A4cXHnWbyg",
 		"Shiori Novella",
 		"https://yt3.ggpht.com/ZlovVsPyh8NgS37S4dfONiCBySiboGPbT9cYuirb8JM3JhSnqlpJk-8SQUEA7jPfqXpMvjaa=s176-c-k-c0x00ffffff-no-rj-mo",
+	},
+	{
+		"UCDHABijvPBnJm7F-KlNME3w",
+		"Gigi Murin",
+		"https://yt3.googleusercontent.com/AD2BC7S_QlNSZEHrM-pyRR0C9DOPnfK2OnuFjTK8F842WydS1HDMe6TvhESY9Er96Kt3yu0-fQ=s120-c-k-c0x00ffffff-no-rj",
 	},
 }
 
