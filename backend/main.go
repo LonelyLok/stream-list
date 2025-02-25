@@ -37,6 +37,14 @@ func baseHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello, World.")
 }
 
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	fmt.Fprintf(w, "OK")
+}
+
 func getUpcomingStreamsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -56,6 +64,7 @@ func main() {
 	})
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", baseHandler)
+	mux.HandleFunc("/health_check", healthCheckHandler)
 	mux.HandleFunc("/upcoming_streams", getUpcomingStreamsHandler)
 	handler := c.Handler(mux)
 	fmt.Println("Server is running on port 8080")

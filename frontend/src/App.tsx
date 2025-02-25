@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-// import { testData } from './test-data/get-data';
 import {
   Box,
   Grid,
@@ -16,6 +15,8 @@ import {
   Tooltip,
   Button,
 } from '@mui/joy';
+// import { testData } from './test-data/get-data';
+const isDevMode = import.meta.env.DEV;
 
 const backendUrl = 'https://stream-list-backend.onrender.com/upcoming_streams';
 
@@ -46,10 +47,15 @@ function App() {
   };
   const getData = async () => {
     try {
-      const response = await fetch(`${backendUrl}`);
-      const data: Record<string, Data> = await response.json();
-      // await new Promise((resolve) => setTimeout(resolve, 2000));
-      // const data: Record<string, Data> = testData;
+      let data: Record<string, Data>;
+      if (isDevMode) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        // data = testData;
+        data = {};
+      } else {
+        const response = await fetch(`${backendUrl}`);
+        data = await response.json();
+      }
       const videos = Object.values(data).flatMap((d) => {
         return d.videos.map((v) => ({ ...v, streamer: d.name }));
       });
@@ -72,6 +78,7 @@ function App() {
       );
     } catch (err) {
       console.log(err);
+      setLoading(false);
     }
   };
   useEffect(() => {
@@ -138,12 +145,18 @@ function App() {
             >
               {streamers.map((streamer, index) => (
                 <Tooltip title={streamer.name}>
-                  <Avatar
-                    key={index}
-                    src={streamer.iconURL}
-                    alt={`Streamer ${index + 1}`}
-                    sx={{ width: 80, height: 80 }}
-                  />
+                  <Link
+                    href={`https://www.youtube.com/channel/${streamer.channelId}`}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                  >
+                    <Avatar
+                      key={index}
+                      src={streamer.iconURL}
+                      alt={`Streamer ${index + 1}`}
+                      sx={{ width: 80, height: 80 }}
+                    />
+                  </Link>
                 </Tooltip>
               ))}
             </Stack>

@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 src/test-data/*
+
+.env
+.env.*
