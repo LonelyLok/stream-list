@@ -125,6 +125,7 @@ func TestFun() {
 }
 
 func GetAllUpcomingStreams() interface{} {
+	resultsMap := map[string]StreamerInfo{}
 
 	API_KEY := os.Getenv("YOUTUBE_API_KEY")
 
@@ -136,8 +137,6 @@ func GetAllUpcomingStreams() interface{} {
 		log.Fatalf("Error creating new Youtube client: %v", err)
 	}
 
-	resultsMap := map[string]StreamerInfo{}
-
 	videoIds := []string{}
 
 	videoLists := []interface{}{}
@@ -147,15 +146,23 @@ func GetAllUpcomingStreams() interface{} {
 	notHoloOnlyStreamers := Filter(streamers, func(s Streamer) bool {
 		return !s.isHolo
 	})
-	holoOnlyStreamers := Filter(streamers, func(s Streamer) bool {
-		return s.isHolo
-	})
+
+	for _, streamer := range streamers {
+		info := StreamerInfo{
+			ChannelID: streamer.channelId,
+			Name:      streamer.name,
+			IconURL:   streamer.iconURL,
+			Videos:    videoLists,
+		}
+		resultsMap[streamer.channelId] = info
+	}
 
 	for _, eventType := range []string{"upcoming", "live"} {
 		call := service.Search.List([]string{"id", "snippet"}).Q("HoloLive EN").Type("video").EventType(eventType).MaxResults(*maxResults)
 		response, err := call.Do()
 		if err != nil {
 			log.Printf("Error making search API call: %v", err)
+			return resultsMap
 		}
 		for _, item := range response.Items {
 			if !(contains(validChannelIds, item.Snippet.ChannelId)) {
@@ -166,16 +173,6 @@ func GetAllUpcomingStreams() interface{} {
 			}
 			videoIds = append(videoIds, item.Id.VideoId)
 		}
-	}
-
-	for _, streamer := range holoOnlyStreamers {
-		info := StreamerInfo{
-			ChannelID: streamer.channelId,
-			Name:      streamer.name,
-			IconURL:   streamer.iconURL,
-			Videos:    videoLists,
-		}
-		resultsMap[streamer.channelId] = info
 	}
 
 	for _, streamer := range notHoloOnlyStreamers {
@@ -200,14 +197,6 @@ func GetAllUpcomingStreams() interface{} {
 				videoIds = append(videoIds, item.Id.VideoId)
 			}
 		}
-
-		info := StreamerInfo{
-			ChannelID: streamer.channelId,
-			Name:      streamer.name,
-			IconURL:   streamer.iconURL,
-			Videos:    videoLists,
-		}
-		resultsMap[streamer.channelId] = info
 	}
 
 	if len(videoIds) > 0 {
