@@ -20,39 +20,70 @@ type Streamer struct {
 	channelId string
 	name      string
 	iconURL   string
+	isHolo    bool
 }
 
 var streamers = []Streamer{
 	{
 		"UCL_qhgtOy0dy1Agp8vkySQg",
 		"Mori Calliope",
-		"https://yt3.googleusercontent.com/FT92k-lGkFhElXOuq3KlwCvCpWPlEYwtAy2tjRibnmkrPP-Aaksbf2_P7XY26O9R2W4efoP7=s120-c-k-c0x00ffffff-no-rj",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/c/cd/Mori_Calliope_-_Icon.png",
+		true,
 	},
 	{
 		"UC8rcEBzJSleTkf_-agPM20g",
 		"IRyS",
-		"https://yt3.googleusercontent.com/zztv3u0fMtIbGu5nLjKPTwR_8-U0nSq80kmWW0xBpc42tA6dFHlDb_TG3VjSPLNFBuAIZtaFrw=s120-c-k-c0x00ffffff-no-rj",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/f/ff/IRyS_-_Icon.png",
+		true,
 	},
 	{
 		"UCHsx4Hqa-1ORjQTh9TYDhww",
 		"Takanashi Kiara",
-		"https://yt3.googleusercontent.com/w7TKJYU7zmamFmf-WxfahCo_K7Bg2__Pk-CCBNnbewMG-77OZLqJO9MLvDAmH9nEkZH8OkWgSQ=s120-c-k-c0x00ffffff-no-rj",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/9/9a/Takanashi_Kiara_-_Icon.png",
+		true,
 	},
 	{
 		"UCgmPnx-EEeOrZSg5Tiw7ZRQ",
 		"Hakos Baelz",
-		"https://yt3.googleusercontent.com/sFBVGkudEnu_MCH23nJdS2oTnOzd9M7e6Mgki5JBhbj4PnjWGgG2hNmW2Vozw5rr8-K0s-DpaPs=s120-c-k-c0x00ffffff-no-rj",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/0/0a/Hakos_Baelz_-_Icon.png",
+		true,
 	},
 	{
 		"UCgnfPPb9JI3e9A4cXHnWbyg",
 		"Shiori Novella",
-		"https://yt3.ggpht.com/ZlovVsPyh8NgS37S4dfONiCBySiboGPbT9cYuirb8JM3JhSnqlpJk-8SQUEA7jPfqXpMvjaa=s176-c-k-c0x00ffffff-no-rj-mo",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/5/53/Shiori_Novella_-_Icon.png",
+		true,
 	},
 	{
 		"UCDHABijvPBnJm7F-KlNME3w",
 		"Gigi Murin",
-		"https://yt3.googleusercontent.com/AD2BC7S_QlNSZEHrM-pyRR0C9DOPnfK2OnuFjTK8F842WydS1HDMe6TvhESY9Er96Kt3yu0-fQ=s120-c-k-c0x00ffffff-no-rj",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/2/2d/Gigi_Murin_-_Icon.png",
+		true,
 	},
+	{
+		"UCIfAvpeIWGHb0duCkMkmm2Q",
+		"Nimi Nightmare",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/f/f3/Nimi_Nightmare_Portrait.jpg",
+		false,
+	},
+}
+
+func Map[T, U any](slice []T, f func(T) U) []U {
+	result := make([]U, len(slice))
+	for i, item := range slice {
+		result[i] = f(item)
+	}
+	return result
+}
+
+func Filter[T any](slice []T, f func(T) bool) []T {
+	filtered := make([]T, 0, len(slice))
+	for _, item := range slice {
+		if f(item) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 func prettyPrintStruct(v interface{}) {
@@ -89,6 +120,10 @@ func contains(slice []string, element string) bool {
 	return false
 }
 
+func TestFun() {
+	fmt.Println("Hello, World!")
+}
+
 func GetAllUpcomingStreams() interface{} {
 
 	API_KEY := os.Getenv("YOUTUBE_API_KEY")
@@ -107,8 +142,43 @@ func GetAllUpcomingStreams() interface{} {
 
 	videoLists := []interface{}{}
 
-	for _, streamer := range streamers {
+	validChannelIds := Map(streamers, func(streamer Streamer) string { return streamer.channelId })
 
+	notHoloOnlyStreamers := Filter(streamers, func(s Streamer) bool {
+		return !s.isHolo
+	})
+	holoOnlyStreamers := Filter(streamers, func(s Streamer) bool {
+		return s.isHolo
+	})
+
+	for _, eventType := range []string{"upcoming", "live"} {
+		call := service.Search.List([]string{"id", "snippet"}).Q("HoloLive EN").Type("video").EventType(eventType).MaxResults(*maxResults)
+		response, err := call.Do()
+		if err != nil {
+			log.Printf("Error making search API call: %v", err)
+		}
+		for _, item := range response.Items {
+			if !(contains(validChannelIds, item.Snippet.ChannelId)) {
+				continue
+			}
+			if contains(videoIds, item.Id.VideoId) {
+				continue
+			}
+			videoIds = append(videoIds, item.Id.VideoId)
+		}
+	}
+
+	for _, streamer := range holoOnlyStreamers {
+		info := StreamerInfo{
+			ChannelID: streamer.channelId,
+			Name:      streamer.name,
+			IconURL:   streamer.iconURL,
+			Videos:    videoLists,
+		}
+		resultsMap[streamer.channelId] = info
+	}
+
+	for _, streamer := range notHoloOnlyStreamers {
 		for _, eventType := range []string{"upcoming", "live"} {
 			call := service.Search.List([]string{"id", "snippet"}).
 				ChannelId(streamer.channelId).

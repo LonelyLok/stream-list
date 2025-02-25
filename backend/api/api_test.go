@@ -8,5 +8,5 @@ import (
 
 func TestGetAllUpcomingStreams(t *testing.T) {
 	util.EnvSetUp()
-	GetAllUpcomingStreams()
+	TestFun()
 }
