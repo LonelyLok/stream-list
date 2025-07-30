@@ -211,10 +211,21 @@ func fetchStartTime(videoID string) (time.Time, error) {
 
 func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 	url := fmt.Sprintf("https://www.youtube.com/channel/%s/streams", channelID)
-	resp, err := http.Get(url)
 	results := []VideoInfoV2{}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return results, fmt.Errorf("fetch page: %w", err)
+		return nil, fmt.Errorf("building request: %w", err)
+	}
+
+	// tell any intermediate caches (and the server) not to return a cached response
+	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Expires", "0")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch page: %w", err)
 	}
 	defer resp.Body.Close()
 
