@@ -207,11 +207,11 @@ function App() {
                           color={
                             video?.liveBroadcastContent
                               ? chipColorMap[
-                                  video.liveBroadcastContent as
-                                    | "live"
-                                    | "none"
-                                    | "upcoming"
-                                ]
+                              video.liveBroadcastContent as
+                              | "live"
+                              | "none"
+                              | "upcoming"
+                              ]
                               : "neutral"
                           }
                           sx={{ marginLeft: "8px" }}
