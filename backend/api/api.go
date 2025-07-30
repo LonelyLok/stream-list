@@ -200,7 +200,6 @@ func fetchStartTime(videoID string) (time.Time, error) {
 
 	// regex extract ytInitialPlayerResponse = { … };
 	re := regexp.MustCompile(`(?s)ytInitialPlayerResponse\s*=\s*(\{.*?\});`)
-	fmt.Println("body:", string(body))
 	m := re.FindStringSubmatch(string(body))
 	if len(m) < 2 {
 		return time.Time{}, fmt.Errorf("player JSON not found")
@@ -365,10 +364,13 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 			scheduled := time.Unix(tsInt, 0)
 			scheduledTime = scheduled
 		} else if isLive {
-			startTime, err := fetchStartTime(id)
-			if err != nil {
-				fmt.Println("Error fetching start time:", err)
-			}
+			// startTime, err := fetchStartTime(id)
+			// if err != nil {
+			// 	fmt.Println("Error fetching start time:", err)
+			// }
+			// Youtube is havinga a bot protection on /watch?v= so we can't fetch the start time
+			// For now, we will set the start time to zero
+			startTime := time.Time{}
 			scheduledTime = startTime
 		}
 
