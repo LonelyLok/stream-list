@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect } from 'react';
 import {
   Box,
   Grid,
@@ -14,11 +14,11 @@ import {
   CircularProgress,
   Tooltip,
   Button,
-} from "@mui/joy";
+} from '@mui/joy';
 // import { testData } from './test-data/get-data';
 const isDevMode = import.meta.env.DEV;
 
-const backendUrl = "https://stream-list-backend.onrender.com/upcoming_streams";
+const backendUrl = 'https://stream-list-backend.onrender.com/upcoming_streams';
 
 type Video = {
   id: string;
@@ -38,12 +38,12 @@ type Data = {
 
 function App() {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [streamers, setStreamers] = useState<Omit<Data, "videos">[]>([]);
+  const [streamers, setStreamers] = useState<Omit<Data, 'videos'>[]>([]);
   const [loading, setLoading] = useState(true);
   const chipColorMap = {
-    live: "danger" as const,
-    none: "neutral" as const,
-    upcoming: "warning" as const,
+    live: 'danger' as const,
+    none: 'neutral' as const,
+    upcoming: 'warning' as const,
   };
   const getData = async () => {
     try {
@@ -53,7 +53,9 @@ function App() {
         // data = testData;
         data = {};
       } else {
-        const response = await fetch(`${backendUrl}`);
+        const response = await fetch(`${backendUrl}`, {
+          cache: 'no-store'
+        });
         data = await response.json();
       }
       const videos = Object.values(data).flatMap((d) => {
@@ -85,32 +87,32 @@ function App() {
     getData();
   }, []);
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
       <Typography
-        level="h2"
-        sx={{ color: "white", mb: 2, alignSelf: "center" }}
+        level='h2'
+        sx={{ color: 'white', mb: 2, alignSelf: 'center' }}
       >
         Upcoming Streams
-        <Tooltip title={"View source code on GitHub"}>
+        <Tooltip title={'View source code on GitHub'}>
           <Button
-            variant="plain"
-            component="a"
-            href="https://github.com/LonelyLok/stream-list"
-            target="_blank"
-            rel="noopener noreferrer"
+            variant='plain'
+            component='a'
+            href='https://github.com/LonelyLok/stream-list'
+            target='_blank'
+            rel='noopener noreferrer'
             sx={{
               ml: 1,
-              "&:hover": {
-                backgroundColor: "rgba(255, 255, 255, 0.1)", // Light white for hover effect
+              '&:hover': {
+                backgroundColor: 'rgba(255, 255, 255, 0.1)', // Light white for hover effect
               },
             }}
           >
             <img
               style={{ width: 24, height: 24 }}
               src={
-                "https://github.com/LonelyLok/LonelyLok.github.io/blob/master/src/assets/github-mark-white.png?raw=true"
+                'https://github.com/LonelyLok/LonelyLok.github.io/blob/master/src/assets/github-mark-white.png?raw=true'
               }
-              alt="github"
+              alt='github'
             />
           </Button>
         </Tooltip>
@@ -118,27 +120,27 @@ function App() {
       {loading ? (
         <Box
           sx={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
           <CircularProgress />
-          <Typography level="body-sm" sx={{ mt: 1, color: "white" }}>
+          <Typography level='body-sm' sx={{ mt: 1, color: 'white' }}>
             Can take a up to a minute to load
           </Typography>
         </Box>
       ) : (
         <div>
           <Box
-            sx={{ width: "100%", maxWidth: "1500px", margin: "0 auto", mb: 3 }}
+            sx={{ width: '100%', maxWidth: '1500px', margin: '0 auto', mb: 3 }}
           >
             <Stack
-              direction="row"
+              direction='row'
               spacing={1}
               sx={{
-                flexWrap: "wrap",
-                justifyContent: "center",
+                flexWrap: 'wrap',
+                justifyContent: 'center',
                 gap: 1,
                 mb: 2,
               }}
@@ -147,8 +149,8 @@ function App() {
                 <Tooltip title={streamer.name}>
                   <Link
                     href={`https://www.youtube.com/channel/${streamer.channelId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    target='_blank'
+                    rel='noopener noreferrer'
                   >
                     <Avatar
                       key={index}
@@ -161,22 +163,22 @@ function App() {
               ))}
             </Stack>
           </Box>
-          <Box sx={{ width: "100%", maxWidth: "1500px", margin: "0 auto" }}>
+          <Box sx={{ width: '100%', maxWidth: '1500px', margin: '0 auto' }}>
             <Grid container spacing={3} sx={{ flexGrow: 1 }}>
               {videos.map((video, index) => (
                 <Grid xs={12} sm={3} md={4} lg={3} key={index}>
                   <Card
-                    variant="outlined"
+                    variant='outlined'
                     sx={{ height: 270, width: 320, p: 1 }}
                   >
-                    <AspectRatio ratio="2">
+                    <AspectRatio ratio='2'>
                       <CardOverflow>
                         <Link
                           href={`https://www.youtube.com/watch?v=${video.id}`}
                           overlay
-                          underline="none"
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          underline='none'
+                          target='_blank'
+                          rel='noopener noreferrer'
                         >
                           <img
                             src={video.thumbnails.medium.url}
@@ -188,33 +190,33 @@ function App() {
                     </AspectRatio>
                     <CardContent>
                       <Tooltip title={video.title}>
-                        <Typography level="title-lg" noWrap={true}>
+                        <Typography level='title-lg' noWrap={true}>
                           {video.title}
                         </Typography>
                       </Tooltip>
-                      <Typography level="body-sm" noWrap={true}>
+                      <Typography level='body-sm' noWrap={true}>
                         Streamer: {video?.streamer}
                       </Typography>
-                      <Typography level="body-sm">
-                        Time:{" "}
+                      <Typography level='body-sm'>
+                        Time:{' '}
                         {new Date(video.scheduledStartTime).toLocaleString()}
                       </Typography>
-                      <Typography level="body-sm">
+                      <Typography level='body-sm'>
                         Status:
                         <Chip
-                          size="sm"
-                          variant="solid"
+                          size='sm'
+                          variant='solid'
                           color={
                             video?.liveBroadcastContent
                               ? chipColorMap[
                               video.liveBroadcastContent as
-                              | "live"
-                              | "none"
-                              | "upcoming"
+                              | 'live'
+                              | 'none'
+                              | 'upcoming'
                               ]
-                              : "neutral"
+                              : 'neutral'
                           }
-                          sx={{ marginLeft: "8px" }}
+                          sx={{ marginLeft: '8px' }}
                         >
                           {video?.liveBroadcastContent?.toUpperCase()}
                         </Chip>
