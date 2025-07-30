@@ -53,7 +53,9 @@ function App() {
         // data = testData;
         data = {};
       } else {
-        const response = await fetch(`${backendUrl}`);
+        const response = await fetch(`${backendUrl}`, {
+          cache: 'no-store'
+        });
         data = await response.json();
       }
       const videos = Object.values(data).flatMap((d) => {
@@ -207,11 +209,11 @@ function App() {
                           color={
                             video?.liveBroadcastContent
                               ? chipColorMap[
-                                  video.liveBroadcastContent as
-                                    | 'live'
-                                    | 'none'
-                                    | 'upcoming'
-                                ]
+                              video.liveBroadcastContent as
+                              | 'live'
+                              | 'none'
+                              | 'upcoming'
+                              ]
                               : 'neutral'
                           }
                           sx={{ marginLeft: '8px' }}
