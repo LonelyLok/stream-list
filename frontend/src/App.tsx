@@ -18,7 +18,7 @@ import {
 // import { testData } from './test-data/get-data';
 const isDevMode = import.meta.env.DEV;
 
-const backendUrl = 'https://stream-list-backend.onrender.com/upcoming_streams';
+const backendUrl = isDevMode ? 'http://localhost:8080/upcoming_streams' : 'https://stream-list-backend.onrender.com/upcoming_streams';
 
 type Video = {
   id: string;
@@ -47,17 +47,10 @@ function App() {
   };
   const getData = async () => {
     try {
-      let data: Record<string, Data>;
-      if (isDevMode) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        // data = testData;
-        data = {};
-      } else {
-        const response = await fetch(`${backendUrl}`, {
-          cache: 'no-store'
-        });
-        data = await response.json();
-      }
+      const response = await fetch(`${backendUrl}`, {
+        cache: 'no-store'
+      });
+      const data = await response.json();
       const videos = Object.values(data).flatMap((d) => {
         return d.videos.map((v) => ({ ...v, streamer: d.name }));
       });

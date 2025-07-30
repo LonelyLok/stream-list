@@ -164,9 +164,7 @@ var httpClient = &http.Client{
 	Transport: &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100,
-		IdleConnTimeout:     90 * time.Second,
 	},
-	Timeout: 15 * time.Second,
 }
 
 func TestFun() {
@@ -181,6 +179,11 @@ func fetchStartTime(videoID string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
+
+	req.Header.Set("User-Agent",
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
+			"AppleWebKit/537.36 (KHTML, like Gecko) "+
+			"Chrome/115.0.0.0 Safari/537.36")
 
 	// 2) force no-cache
 	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
