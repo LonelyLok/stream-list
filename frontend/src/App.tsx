@@ -50,7 +50,7 @@ function App() {
       const response = await fetch(`${backendUrl}`, {
         cache: 'no-store'
       });
-      const data = await response.json();
+      const data: Record<string, Data> = await response.json();
       const videos = Object.values(data).flatMap((d) => {
         return d.videos.map((v) => ({ ...v, streamer: d.name }));
       });

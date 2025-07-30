@@ -180,11 +180,6 @@ func fetchStartTime(videoID string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	req.Header.Set("User-Agent",
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
-			"AppleWebKit/537.36 (KHTML, like Gecko) "+
-			"Chrome/115.0.0.0 Safari/537.36")
-
 	// 2) force no-cache
 	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	req.Header.Set("Pragma", "no-cache")
@@ -205,6 +200,7 @@ func fetchStartTime(videoID string) (time.Time, error) {
 
 	// regex extract ytInitialPlayerResponse = { … };
 	re := regexp.MustCompile(`(?s)ytInitialPlayerResponse\s*=\s*(\{.*?\});`)
+	fmt.Println("body:", string(body))
 	m := re.FindStringSubmatch(string(body))
 	if len(m) < 2 {
 		return time.Time{}, fmt.Errorf("player JSON not found")
@@ -378,7 +374,6 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 
 		if scheduledTime.IsZero() {
 			fmt.Println("No scheduled time found for video:", id)
-			continue
 		}
 
 		var status string
