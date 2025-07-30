@@ -160,14 +160,45 @@ func contains(slice []string, element string) bool {
 	return false
 }
 
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 100,
+		IdleConnTimeout:     90 * time.Second,
+	},
+	Timeout: 15 * time.Second,
+}
+
 func TestFun() {
 	fmt.Println("Hello, World!")
 }
 
 func fetchStartTime(videoID string) (time.Time, error) {
-	resp, _ := http.Get("https://www.youtube.com/watch?v=" + videoID)
-	body, _ := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	url := "https://www.youtube.com/watch?v=" + videoID
+
+	// 1) build a new GET request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	// 2) force no-cache
+	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Expires", "0")
+
+	// 3) execute it
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer resp.Body.Close()
+
+	// 4) read the body as before
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return time.Time{}, err
+	}
 
 	// regex extract ytInitialPlayerResponse = { … };
 	re := regexp.MustCompile(`(?s)ytInitialPlayerResponse\s*=\s*(\{.*?\});`)
@@ -222,8 +253,7 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 	req.Header.Set("Pragma", "no-cache")
 	req.Header.Set("Expires", "0")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch page: %w", err)
 	}

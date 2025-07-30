@@ -52,9 +52,19 @@ func getUpcomingStreamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	origin := r.Header.Get("Origin")
 	fmt.Printf("Request originated from: %s\n", origin)
+
 	results := api.GetAllUpcomingStreamsByScraping()
+
+	// 2) set your no-cache and content headers
+	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+
+	// 3) write out the JSON
+	if err := json.NewEncoder(w).Encode(results); err != nil {
+		http.Error(w, "failed to encode JSON", http.StatusInternalServerError)
+	}
 }
 
 func main() {
