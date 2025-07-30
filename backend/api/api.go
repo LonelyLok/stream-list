@@ -180,11 +180,6 @@ func fetchStartTime(videoID string) (time.Time, error) {
 		return time.Time{}, err
 	}
 
-	req.Header.Set("User-Agent",
-		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
-			"AppleWebKit/537.36 (KHTML, like Gecko) "+
-			"Chrome/115.0.0.0 Safari/537.36")
-
 	// 2) force no-cache
 	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	req.Header.Set("Pragma", "no-cache")
@@ -369,16 +364,18 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 			scheduled := time.Unix(tsInt, 0)
 			scheduledTime = scheduled
 		} else if isLive {
-			startTime, err := fetchStartTime(id)
-			if err != nil {
-				fmt.Println("Error fetching start time:", err)
-			}
+			// startTime, err := fetchStartTime(id)
+			// if err != nil {
+			// 	fmt.Println("Error fetching start time:", err)
+			// }
+			// Youtube is havinga a bot protection on /watch?v= so we can't fetch the start time
+			// For now, we will set the start time to zero
+			startTime := time.Time{}
 			scheduledTime = startTime
 		}
 
 		if scheduledTime.IsZero() {
 			fmt.Println("No scheduled time found for video:", id)
-			continue
 		}
 
 		var status string
