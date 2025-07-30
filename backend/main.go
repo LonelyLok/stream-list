@@ -52,7 +52,7 @@ func getUpcomingStreamsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	origin := r.Header.Get("Origin")
 	fmt.Printf("Request originated from: %s\n", origin)
-	results := api.GetAllUpcomingStreams()
+	results := api.GetAllUpcomingStreamsByScraping()
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
 }

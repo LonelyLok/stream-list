@@ -1,8 +1,13 @@
 module example.com/backend
 
-go 1.22.3
+go 1.23.0
 
-require google.golang.org/api v0.197.0
+toolchain go1.24.5
+
+require (
+	github.com/rs/cors v1.11.1
+	google.golang.org/api v0.197.0
+)
 
 require (
 	cloud.google.com/go/auth v0.9.4 // indirect
@@ -16,7 +21,6 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.4 // indirect
 	github.com/googleapis/gax-go/v2 v2.13.0 // indirect
-	github.com/rs/cors v1.11.1 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0 // indirect
 	go.opentelemetry.io/otel v1.30.0 // indirect
@@ -25,6 +29,7 @@ require (
 	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect

@@ -5,8 +5,15 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
@@ -66,6 +73,12 @@ var streamers = []Streamer{
 		"https://static.wikia.nocookie.net/virtualyoutuber/images/f/f3/Nimi_Nightmare_Portrait.jpg",
 		false,
 	},
+	{
+		"UC6T7TJZbW6nO-qsc5coo8Pg",
+		"Dooby3D",
+		"https://static.wikia.nocookie.net/virtualyoutuber/images/1/10/Dooby3d.png",
+		false,
+	},
 }
 
 func Map[T, U any](slice []T, f func(T) U) []U {
@@ -104,11 +117,38 @@ type VideoInfo struct {
 	ChannelID            string                    `json:"channelId"`
 }
 
+type Thumbnail struct {
+	URL    string `json:"url"`
+	Width  int    `json:"width"`
+	Height int    `json:"height"`
+}
+
+type Thumbnails struct {
+	Medium *Thumbnail `json:"medium"`
+}
+
+// Stream holds the fields we care about for each upcoming stream.
+type VideoInfoV2 struct {
+	ID                   string     `json:"id"`
+	Title                string     `json:"title"`
+	ScheduledStartTime   string     `json:"scheduledStartTime"`
+	Thumbnails           Thumbnails `json:"thumbnails"`
+	LiveBroadcastContent string     `json:"liveBroadcastContent"`
+	ChannelID            string     `json:"channelId"`
+}
+
 type StreamerInfo struct {
 	ChannelID string        `json:"channelId"`
 	Name      string        `json:"name"`
 	IconURL   string        `json:"iconURL"`
 	Videos    []interface{} `json:"videos"`
+}
+
+type StreamerInfoV2 struct {
+	ChannelID string        `json:"channelId"`
+	Name      string        `json:"name"`
+	IconURL   string        `json:"iconURL"`
+	Videos    []VideoInfoV2 `json:"videos"`
 }
 
 func contains(slice []string, element string) bool {
@@ -122,6 +162,231 @@ func contains(slice []string, element string) bool {
 
 func TestFun() {
 	fmt.Println("Hello, World!")
+}
+
+func fetchStartTime(videoID string) (time.Time, error) {
+	resp, _ := http.Get("https://www.youtube.com/watch?v=" + videoID)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+
+	// regex extract ytInitialPlayerResponse = { … };
+	re := regexp.MustCompile(`(?s)ytInitialPlayerResponse\s*=\s*(\{.*?\});`)
+	m := re.FindStringSubmatch(string(body))
+	if len(m) < 2 {
+		return time.Time{}, fmt.Errorf("player JSON not found")
+	}
+
+	var pr map[string]interface{}
+	if err := json.Unmarshal([]byte(m[1]), &pr); err != nil {
+		return time.Time{}, err
+	}
+
+	// dig into microformat → playerMicroformatRenderer
+	mf, ok := pr["microformat"].(map[string]interface{})
+	if !ok {
+		return time.Time{}, fmt.Errorf("microformat not found")
+	}
+	pmr, ok := mf["playerMicroformatRenderer"].(map[string]interface{})
+	if !ok {
+		return time.Time{}, fmt.Errorf("playerMicroformatRenderer not found")
+	}
+
+	// pull the liveBroadcastDetails.startTimestamp
+	lbd, ok := pmr["liveBroadcastDetails"].(map[string]interface{})
+	if !ok {
+		return time.Time{}, fmt.Errorf("liveBroadcastDetails not found")
+	}
+	ts, ok := lbd["startTimestamp"].(string)
+	if !ok {
+		return time.Time{}, fmt.Errorf("startTimestamp not a string")
+	}
+
+	// parse the RFC3339 timestamp
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
+}
+
+func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
+	url := fmt.Sprintf("https://www.youtube.com/channel/%s/streams", channelID)
+	resp, err := http.Get(url)
+	results := []VideoInfoV2{}
+	if err != nil {
+		return results, fmt.Errorf("fetch page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	htmlBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return results, fmt.Errorf("read body: %w", err)
+	}
+	html := string(htmlBytes)
+
+	// 1) Extract the ytInitialData JSON blob
+	re := regexp.MustCompile(`(?s)ytInitialData\s*=\s*(\{.*?\});`)
+	matches := re.FindStringSubmatch(html)
+	if len(matches) < 2 {
+		return results, fmt.Errorf("ytInitialData not found")
+	}
+
+	var initialData map[string]interface{}
+	if err := json.Unmarshal([]byte(matches[1]), &initialData); err != nil {
+		return results, fmt.Errorf("parse JSON: %w", err)
+	}
+
+	// fmt.Printf("%#v\n", initialData)
+
+	// 2) Drill into contents.twoColumnBrowseResultsRenderer.tabs
+	contents, _ := initialData["contents"].(map[string]interface{})
+	browse, _ := contents["twoColumnBrowseResultsRenderer"].(map[string]interface{})
+	tabs, _ := browse["tabs"].([]interface{})
+
+	// 3) Locate the Streams tab
+	var streamTab map[string]interface{}
+	for _, t := range tabs {
+		tr, ok := t.(map[string]interface{})["tabRenderer"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		title, _ := tr["title"].(string)
+		if title == "Live" || tr["selected"] == true {
+			streamTab, _ = tr["content"].(map[string]interface{})
+			break
+		}
+	}
+	if streamTab == nil {
+		return results, fmt.Errorf("streams tab not found")
+	}
+
+	// 4) Extract the grid of items
+	grid, _ := streamTab["richGridRenderer"].(map[string]interface{})
+	items, _ := grid["contents"].([]interface{})
+
+	for _, c := range items {
+		itemMap, _ := c.(map[string]interface{})["richItemRenderer"].(map[string]interface{})
+		content, _ := itemMap["content"].(map[string]interface{})
+		vr, ok := content["videoRenderer"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		id := vr["videoId"].(string)
+		titleRuns := vr["title"].(map[string]interface{})["runs"].([]interface{})
+		title := titleRuns[0].(map[string]interface{})["text"].(string)
+
+		thumbsRaw, _ := vr["thumbnail"].(map[string]interface{})["thumbnails"].([]interface{})
+
+		var t Thumbnails
+
+		for _, raw := range thumbsRaw {
+
+			m, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			url, ok1 := m["url"].(string)
+			if !ok1 {
+				continue
+			}
+			mediumURL := strings.Replace(url, "hqdefault.jpg", "mqdefault.jpg", 1)
+			thumb := &Thumbnail{
+				URL:    mediumURL,
+				Width:  320,
+				Height: 180,
+			}
+			t.Medium = thumb
+			break
+		}
+
+		isLive := false
+		if overlays, ok := vr["thumbnailOverlays"].([]interface{}); ok {
+			for _, o := range overlays {
+				if m, ok := o.(map[string]interface{})["thumbnailOverlayTimeStatusRenderer"].(map[string]interface{}); ok {
+					if m["style"] == "LIVE" {
+						isLive = true
+						break
+					}
+				}
+			}
+		}
+
+		up, isUpcoming := vr["upcomingEventData"].(map[string]interface{})
+
+		if !isUpcoming && !isLive {
+			continue
+		}
+		var scheduledTime time.Time
+		if isUpcoming {
+			tsStr, _ := up["startTime"].(string)
+			tsInt, _ := strconv.ParseInt(tsStr, 10, 64)
+			scheduled := time.Unix(tsInt, 0)
+			scheduledTime = scheduled
+		} else if isLive {
+			startTime, err := fetchStartTime(id)
+			if err != nil {
+				fmt.Println("Error fetching start time:", err)
+			}
+			scheduledTime = startTime
+		}
+
+		if scheduledTime.IsZero() {
+			fmt.Println("No scheduled time found for video:", id)
+			continue
+		}
+
+		var status string
+		if isUpcoming {
+			status = "upcoming"
+		} else {
+			status = "live"
+		}
+
+		results = append(results, VideoInfoV2{
+			ID:                   id,
+			Title:                title,
+			ScheduledStartTime:   scheduledTime.UTC().Format(time.RFC3339),
+			LiveBroadcastContent: status,
+			ChannelID:            channelID,
+			Thumbnails:           t,
+		})
+	}
+	return results, nil
+}
+
+func GetAllUpcomingStreamsByScraping() map[string]StreamerInfoV2 {
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	results := make(map[string]StreamerInfoV2, len(streamers))
+
+	for _, streamer := range streamers {
+		wg.Add(1)
+		go func(s Streamer) {
+			defer wg.Done()
+
+			videos, err := scrapeStreams(s.channelId)
+			if err != nil {
+				fmt.Println("Error scraping streams for", s.name, ":", err)
+				return
+			}
+
+			info := StreamerInfoV2{
+				ChannelID: s.channelId,
+				Name:      s.name,
+				IconURL:   s.iconURL,
+				Videos:    videos,
+			}
+
+			mu.Lock()
+			results[s.channelId] = info
+			mu.Unlock()
+		}(streamer)
+	}
+
+	wg.Wait()
+	return results
 }
 
 func GetAllUpcomingStreams() interface{} {
