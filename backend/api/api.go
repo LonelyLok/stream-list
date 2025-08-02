@@ -30,6 +30,8 @@ type Streamer struct {
 	isHolo    bool
 }
 
+var YOUTUBE_API_KEY = os.Getenv("YOUTUBE_API_KEY")
+
 var streamers = []Streamer{
 	{
 		"UCL_qhgtOy0dy1Agp8vkySQg",
@@ -127,14 +129,22 @@ type Thumbnails struct {
 	Medium *Thumbnail `json:"medium"`
 }
 
-// Stream holds the fields we care about for each upcoming stream.
-type VideoInfoV2 struct {
+type videoBase struct {
 	ID                   string     `json:"id"`
 	Title                string     `json:"title"`
-	ScheduledStartTime   string     `json:"scheduledStartTime"`
 	Thumbnails           Thumbnails `json:"thumbnails"`
 	LiveBroadcastContent string     `json:"liveBroadcastContent"`
 	ChannelID            string     `json:"channelId"`
+}
+
+type VideoInfoV2 struct {
+	videoBase
+	ScheduledStartTime time.Time `json:"scheduledStartTime"`
+}
+
+type VideoInfoV2Out struct {
+	videoBase
+	ScheduledStartTime string `json:"scheduledStartTime"`
 }
 
 type StreamerInfo struct {
@@ -145,10 +155,10 @@ type StreamerInfo struct {
 }
 
 type StreamerInfoV2 struct {
-	ChannelID string        `json:"channelId"`
-	Name      string        `json:"name"`
-	IconURL   string        `json:"iconURL"`
-	Videos    []VideoInfoV2 `json:"videos"`
+	ChannelID string           `json:"channelId"`
+	Name      string           `json:"name"`
+	IconURL   string           `json:"iconURL"`
+	Videos    []VideoInfoV2Out `json:"videos"`
 }
 
 func contains(slice []string, element string) bool {
@@ -171,7 +181,21 @@ func TestFun() {
 	fmt.Println("Hello, World!")
 }
 
-func fetchStartTime(videoID string) (time.Time, error) {
+var (
+	once    sync.Once
+	service *youtube.Service
+	initErr error
+)
+
+func getYouTubeService() (*youtube.Service, error) {
+	once.Do(func() {
+		service, initErr = youtube.NewService(context.Background(), option.WithAPIKey(os.Getenv("YOUTUBE_API_KEY")))
+	})
+	return service, initErr
+}
+
+// Youtube is havinga a bot protection on /watch?v= so we can't fetch the start time
+func fetchStartTimeByScraping(videoID string) (time.Time, error) {
 	url := "https://www.youtube.com/watch?v=" + videoID
 
 	// 1) build a new GET request
@@ -364,12 +388,6 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 			scheduled := time.Unix(tsInt, 0)
 			scheduledTime = scheduled
 		} else if isLive {
-			// startTime, err := fetchStartTime(id)
-			// if err != nil {
-			// 	fmt.Println("Error fetching start time:", err)
-			// }
-			// Youtube is havinga a bot protection on /watch?v= so we can't fetch the start time
-			// For now, we will set the start time to zero
 			startTime := time.Time{}
 			scheduledTime = startTime
 		}
@@ -386,12 +404,14 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 		}
 
 		results = append(results, VideoInfoV2{
-			ID:                   id,
-			Title:                title,
-			ScheduledStartTime:   scheduledTime.UTC().Format(time.RFC3339),
-			LiveBroadcastContent: status,
-			ChannelID:            channelID,
-			Thumbnails:           t,
+			videoBase: videoBase{
+				ID:                   id,
+				Title:                title,
+				LiveBroadcastContent: status,
+				ChannelID:            channelID,
+				Thumbnails:           t,
+			},
+			ScheduledStartTime: scheduledTime.UTC(),
 		})
 	}
 	return results, nil
@@ -399,8 +419,14 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 
 func GetAllUpcomingStreamsByScraping() map[string]StreamerInfoV2 {
 	var wg sync.WaitGroup
-	var mu sync.Mutex
-	results := make(map[string]StreamerInfoV2, len(streamers))
+
+	// protect preResults
+	var preMu sync.Mutex
+	preResults := make(map[string][]VideoInfoV2, len(streamers))
+
+	// collect missing start-time IDs with dedupe
+	var missingMu sync.Mutex
+	missingSet := make(map[string]struct{})
 
 	for _, streamer := range streamers {
 		wg.Add(1)
@@ -409,46 +435,106 @@ func GetAllUpcomingStreamsByScraping() map[string]StreamerInfoV2 {
 
 			videos, err := scrapeStreams(s.channelId)
 			if err != nil {
-				fmt.Println("Error scraping streams for", s.name, ":", err)
+				fmt.Printf("error scraping streams for %s: %v\n", s.name, err)
 				return
 			}
 
-			info := StreamerInfoV2{
-				ChannelID: s.channelId,
-				Name:      s.name,
-				IconURL:   s.iconURL,
-				Videos:    videos,
+			// collect missing IDs (deduped)
+			for _, v := range videos {
+				if v.ScheduledStartTime.IsZero() {
+					missingMu.Lock()
+					missingSet[v.ID] = struct{}{}
+					missingMu.Unlock()
+				}
 			}
 
-			mu.Lock()
-			results[s.channelId] = info
-			mu.Unlock()
+			preMu.Lock()
+			preResults[s.channelId] = videos
+			preMu.Unlock()
 		}(streamer)
 	}
-
 	wg.Wait()
+
+	// build deduped slice for API call
+	missingIDs := make([]string, 0, len(missingSet))
+	for id := range missingSet {
+		missingIDs = append(missingIDs, id)
+	}
+
+	timeMap := getVideosStartTimeFromYTApi(missingIDs)
+
+	results := make(map[string]StreamerInfoV2, len(streamers))
+	for _, streamer := range streamers {
+		videos := preResults[streamer.channelId]
+		newVideos := make([]VideoInfoV2Out, len(videos))
+		for i, v := range videos {
+			base := videoBase{
+				ID:                   v.ID,
+				Title:                v.Title,
+				Thumbnails:           v.Thumbnails,
+				LiveBroadcastContent: v.LiveBroadcastContent,
+				ChannelID:            v.ChannelID,
+			}
+
+			scheduled := v.ScheduledStartTime.UTC().Format(time.RFC3339)
+			if v.ScheduledStartTime.IsZero() {
+				if startTime, ok := timeMap[v.ID]; ok {
+					scheduled = startTime
+				}
+			}
+
+			newVideos[i] = VideoInfoV2Out{
+				videoBase:          base,
+				ScheduledStartTime: scheduled,
+			}
+		}
+
+		info := StreamerInfoV2{
+			ChannelID: streamer.channelId,
+			Name:      streamer.name,
+			IconURL:   streamer.iconURL,
+			Videos:    newVideos,
+		}
+		results[streamer.channelId] = info
+	}
 	return results
+}
+
+func getVideosStartTimeFromYTApi(videoIDs []string) map[string]string {
+	if len(videoIDs) == 0 {
+		return map[string]string{}
+	}
+	idToStartTime := make(map[string]string, len(videoIDs))
+	service, err := getYouTubeService()
+	if err != nil {
+		log.Printf("Error getting YouTube service: %v", err)
+		return idToStartTime
+	}
+	videoCall := service.Videos.List([]string{"snippet", "liveStreamingDetails"}).Id(videoIDs...)
+
+	response, err := videoCall.Do()
+
+	if err != nil {
+		log.Printf("Error making Video List API call: %v", err)
+	}
+
+	for _, item := range response.Items {
+		idToStartTime[item.Id] = item.LiveStreamingDetails.ScheduledStartTime
+	}
+	return idToStartTime
 }
 
 func GetAllUpcomingStreams() interface{} {
 	resultsMap := map[string]StreamerInfo{}
-
-	API_KEY := os.Getenv("YOUTUBE_API_KEY")
-
-	ctx := context.Background()
-
-	service, err := youtube.NewService(ctx, option.WithAPIKey(API_KEY))
+	service, err := getYouTubeService()
 
 	if err != nil {
 		log.Fatalf("Error creating new Youtube client: %v", err)
 	}
 
 	videoIds := []string{}
-
 	videoLists := []interface{}{}
-
 	validChannelIds := Map(streamers, func(streamer Streamer) string { return streamer.channelId })
-
 	notHoloOnlyStreamers := Filter(streamers, func(s Streamer) bool {
 		return !s.isHolo
 	})
