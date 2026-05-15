@@ -262,6 +262,20 @@ func fetchStartTimeByScraping(videoID string) (time.Time, error) {
 	return t, nil
 }
 
+func parseScheduledTextUTC(s string) (time.Time, error) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "Scheduled for ")
+	s = strings.ReplaceAll(s, "\u202f", " ")
+	s = strings.ReplaceAll(s, "\u00a0", " ")
+
+	t, err := time.ParseInLocation("1/2/06, 3:04 PM", s, time.UTC)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return t.UTC(), nil
+}
+
 func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 	url := fmt.Sprintf("https://www.youtube.com/channel/%s/streams", channelID)
 	results := []VideoInfoV2{}
@@ -274,6 +288,7 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	req.Header.Set("Pragma", "no-cache")
 	req.Header.Set("Expires", "0")
+	req.Header.Set("Cookie", "PREF=tz=UTC")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
@@ -330,11 +345,131 @@ func scrapeStreams(channelID string) ([]VideoInfoV2, error) {
 	for _, c := range items {
 		itemMap, _ := c.(map[string]interface{})["richItemRenderer"].(map[string]interface{})
 		content, _ := itemMap["content"].(map[string]interface{})
+
 		vr, ok := content["videoRenderer"].(map[string]interface{})
 		if !ok {
+			lockup, ok := content["lockupViewModel"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			id, _ := lockup["contentId"].(string)
+			if id == "" {
+				continue
+			}
+
+			metadata, _ := lockup["metadata"].(map[string]interface{})
+			lockupMetadata, _ := metadata["lockupMetadataViewModel"].(map[string]interface{})
+			titleObj, _ := lockupMetadata["title"].(map[string]interface{})
+			title, _ := titleObj["content"].(string)
+
+			contentImage, _ := lockup["contentImage"].(map[string]interface{})
+			thumbnailVM, _ := contentImage["thumbnailViewModel"].(map[string]interface{})
+			image, _ := thumbnailVM["image"].(map[string]interface{})
+			sources, _ := image["sources"].([]interface{})
+
+			var t Thumbnails
+			for _, raw := range sources {
+				m, ok := raw.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				url, ok1 := m["url"].(string)
+				if !ok1 {
+					continue
+				}
+				mediumURL := strings.Replace(url, "hqdefault.jpg", "mqdefault.jpg", 1)
+				thumb := &Thumbnail{
+					URL:    mediumURL,
+					Width:  320,
+					Height: 180,
+				}
+				t.Medium = thumb
+				break
+			}
+
+			isLive := false
+			isUpcoming := false
+			if overlays, ok := thumbnailVM["overlays"].([]interface{}); ok {
+				for _, o := range overlays {
+					overlay, ok := o.(map[string]interface{})
+					if !ok {
+						continue
+					}
+					bottomOverlay, ok := overlay["thumbnailBottomOverlayViewModel"].(map[string]interface{})
+					if !ok {
+						continue
+					}
+					badges, _ := bottomOverlay["badges"].([]interface{})
+					for _, badgeRaw := range badges {
+						badge, _ := badgeRaw.(map[string]interface{})
+						badgeVM, _ := badge["thumbnailBadgeViewModel"].(map[string]interface{})
+						badgeText, _ := badgeVM["text"].(string)
+
+						switch strings.ToLower(badgeText) {
+						case "live":
+							isLive = true
+						case "upcoming":
+							isUpcoming = true
+						}
+					}
+				}
+			}
+
+			if !isUpcoming && !isLive {
+				continue
+			}
+
+			if title == "" {
+				title = id
+			}
+
+			var scheduledTime time.Time
+			if metadataVM, ok := lockupMetadata["metadata"].(map[string]interface{}); ok {
+				contentMetadata, _ := metadataVM["contentMetadataViewModel"].(map[string]interface{})
+				metadataRows, _ := contentMetadata["metadataRows"].([]interface{})
+
+				for _, rowRaw := range metadataRows {
+					row, _ := rowRaw.(map[string]interface{})
+					parts, _ := row["metadataParts"].([]interface{})
+
+					for _, partRaw := range parts {
+						part, _ := partRaw.(map[string]interface{})
+						text, _ := part["text"].(map[string]interface{})
+						content, _ := text["content"].(string)
+						if !strings.HasPrefix(content, "Scheduled for ") {
+							continue
+						}
+
+						if parsed, err := parseScheduledTextUTC(content); err == nil {
+							scheduledTime = parsed
+						}
+					}
+				}
+			}
+
+			status := "live"
+			if isUpcoming {
+				status = "upcoming"
+			}
+
+			if scheduledTime.IsZero() {
+				fmt.Println("No scheduled time found for video:", id)
+			}
+
+			results = append(results, VideoInfoV2{
+				videoBase: videoBase{
+					ID:                   id,
+					Title:                title,
+					LiveBroadcastContent: status,
+					ChannelID:            channelID,
+					Thumbnails:           t,
+				},
+				ScheduledStartTime: scheduledTime.UTC(),
+			})
 			continue
 		}
-
 		id := vr["videoId"].(string)
 		titleRuns := vr["title"].(map[string]interface{})["runs"].([]interface{})
 		title := titleRuns[0].(map[string]interface{})["text"].(string)
